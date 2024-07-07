@@ -5,7 +5,7 @@ Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Imag
 [07/07/24] Repo is created.
 
 ## TL;DR
-+ [PRISM](https://github.com/MedICL-VU/PRISM) is an **effective** and **efficient** 3D interactive model for placenta segmentation
++ [PRISM](https://github.com/MedICL-VU/PRISM) is an **effective** and **efficient** 3D interactive model for [placenta](https://www.mayoclinic.org/healthy-lifestyle/pregnancy-week-by-week/in-depth/placenta/art-20044425) segmentation
 
 + The detailed **effective** and **efficient** results are included in our [paper](https://arxiv.org/abs/2404.15028), please check if you are interested
 

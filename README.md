@@ -13,10 +13,11 @@ Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Imag
 
 
 ## Effective 
+The quantitative results can be viewed in our [paper](https://arxiv.org/abs/2404.15028), briefly, mean Dice scores are 0.9 for automated and 0.97 for [PRISM](https://github.com/MedICL-VU/PRISM).
 Qualitative results with compared methods. We tested the performance of nnUnet, and it is worse than our state-of-the-art model (automated).
 ![qualitative_results](figs/qualitative.png)
 
-The quantitative results can be viewed in our [paper](https://arxiv.org/abs/2404.15028)
+
 
 
 ## Efficient

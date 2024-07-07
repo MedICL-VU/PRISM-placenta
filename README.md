@@ -10,5 +10,7 @@ PRISM is an effective and efficient 3D interactive model for placenta segmentati
 
 ## Effective
 
-Qualitative results with compared methods | ![qualitative_results](figs/qualitative.png)
+  
+Qualitative results with compared methods ![qualitative_results](figs/qualitative.png)
+
 The quantitative results can be viewed in our [paper](https://arxiv.org/abs/2404.15028).

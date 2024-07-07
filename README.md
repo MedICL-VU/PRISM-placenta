@@ -2,7 +2,7 @@
 Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Images
 
 ## News
-[07/07/24] Repo is created.
+[07/07/24] Repo is created as a version control for the placenta application.
 
 
 ## TODO

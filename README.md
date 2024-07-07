@@ -75,7 +75,7 @@ python test.py --data ultrasound --data_dir your_data_directory --split test --c
 
 if you got the error as AttributeError: module 'cv2' has no attribute 'ximgproc', please check [this](https://stackoverflow.com/questions/57427233/module-cv2-cv2-has-no-attribute-ximgproc) out
 
-I haven't cleaned the code, and it has some arguments for past/future efficient or effective analyses.
+This repo is tested to reproduce the results in our paper. However, I haven't cleaned the code, and it has some arguments for past/future efficient or effective analyses.
 
 ## License
 

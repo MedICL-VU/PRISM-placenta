@@ -8,4 +8,6 @@ Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Imag
 ## TL;DR
 PRISM is an effective and efficient 3D interactive model for placenta segmentation. 
 
-## PRISM placenta segmentation results
+## Effective
+
+

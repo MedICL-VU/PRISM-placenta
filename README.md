@@ -32,7 +32,7 @@ We consider a Dice score of 0.95 as a bar for success, which is higher than inte
 
 
 ## Datasets
-in-house dataset, the details can be viewed in other papers from our group (you can find them in the **Reference** section in the paper)
+We used the in-house dataset, the details can be viewed in other papers from our group (you can find them in the **Reference** section in the paper)
 
 
 ## Get Started

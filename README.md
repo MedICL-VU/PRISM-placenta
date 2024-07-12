@@ -1,6 +1,8 @@
 # PRISM-placenta
 Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Images
 
+[arXiv version](https://arxiv.org/abs/2407.08020)
+
 ## News
 [07/07/24] Repo is created as a version control for the placenta application.
 
@@ -12,7 +14,7 @@ demo (radio) is on the list
 ## TL;DR
 + [PRISM](https://github.com/MedICL-VU/PRISM) is an **effective** and **efficient** 3D interactive model for [placenta](https://www.mayoclinic.org/healthy-lifestyle/pregnancy-week-by-week/in-depth/placenta/art-20044425) segmentation
 
-+ The detailed **effective** and **efficient** results are included in our [paper](https://arxiv.org/abs/2404.15028), please check if you are interested
++ The detailed **effective** and **efficient** results are included in our [paper](https://arxiv.org/abs/2407.08020), please check if you are interested
 
 + We note this is such an open area, and we keep pushing it with more analyses. Please let me know if you have any thoughts
 
@@ -22,7 +24,7 @@ To mimic human behavior, we sample prompts from the FN and FP regions of the cur
 
 
 ## Effective 
-The quantitative results can be viewed in our [paper](https://arxiv.org/abs/2404.15028), briefly, mean Dice scores are 0.9 for automated and 0.97 for [PRISM](https://github.com/MedICL-VU/PRISM).
+The quantitative results can be viewed in our [paper](https://arxiv.org/abs/2407.08020), briefly, mean Dice scores are 0.9 for automated and 0.97 for [PRISM](https://github.com/MedICL-VU/PRISM).
 Qualitative results with compared methods. We tested the performance of nnUnet, and it is worse than our state-of-the-art model (automated).
 ![qualitative_results](figs/qualitative.png)
 
@@ -93,10 +95,10 @@ Thanks for the code from: [SAM](https://github.com/facebookresearch/segment-anyt
 
 If you find this repository useful, please consider citing this paper:
 ```
-@article{li2024prism,
-  title={PRISM: A Promptable and Robust Interactive Segmentation Model with Visual Prompts},
-  author={Li, Hao and Liu, Han and Hu, Dewei and Wang, Jiacheng and Oguz, Ipek},
-  journal={arXiv preprint arXiv:2404.15028},
+@article{li2024inter,
+  title={Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound images},
+  author={Li, Hao and Oguz, Baris and Arenas, Gabriel and Yao, Xing and Wang, Jiacheng and Pouch, Alison and Byram, Brett and Schwartz, Nadav and Oguz, Ipek},
+  journal={arXiv preprint arXiv:2407.08020},
   year={2024}
 }
 ```

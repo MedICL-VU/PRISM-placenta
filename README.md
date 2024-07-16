@@ -95,7 +95,7 @@ Thanks for the code from: [SAM](https://github.com/facebookresearch/segment-anyt
 
 If you find this repository useful, please consider citing this paper:
 ```
-@article{li2024inter,
+@article{li2024interactive,
   title={Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound images},
   author={Li, Hao and Oguz, Baris and Arenas, Gabriel and Yao, Xing and Wang, Jiacheng and Pouch, Alison and Byram, Brett and Schwartz, Nadav and Oguz, Ipek},
   journal={arXiv preprint arXiv:2407.08020},

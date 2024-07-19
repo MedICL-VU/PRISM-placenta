@@ -102,4 +102,12 @@ If you find this repository useful, please consider citing this paper:
   year={2024}
 }
 ```
+```
+@article{li2024prism,
+  title={PRISM: A Promptable and Robust Interactive Segmentation Model with Visual Prompts},
+  author={Li, Hao and Liu, Han and Hu, Dewei and Wang, Jiacheng and Oguz, Ipek},
+  journal={arXiv preprint arXiv:2404.15028},
+  year={2024}
+}
+```
 Please send an email to hao.li.1@vanderbilt.edu for any questions, and we are always happy to help! :)

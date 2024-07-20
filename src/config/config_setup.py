@@ -47,6 +47,18 @@ def get_dataloader(args, split='', pcc=False):
 
 def build_model(args, checkpoint=None):
     sam_model = sam_model_registry3D[args.model_type](checkpoint=checkpoint, args=args).to(args.device)
+    # Calculate total parameters
+    total_params = sum(p.numel() for p in sam_model.parameters() if p.requires_grad)
+    print("Total number of parameters: ", total_params)
+
+    total_params = sum(p.numel() for p in sam_model.mask_decoder.refine.parameters() if p.requires_grad)
+    print("Total number of parameters from mask decoder refine module: ", total_params)
+
+    # PRISM image encoder flops: 278724018960
+    # from fvcore.nn import FlopCountAnalysis
+    # image = torch.rand(1, 1, 128, 128, 128)
+    # flop_counter = FlopCountAnalysis(sam_model.mask_decoder.refine.cpu(), image)
+    # print(flop_counter.total())
     if args.ddp:
         sam_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(sam_model)
         sam_model = DDP(sam_model, device_ids=[args.rank], output_device=args.rank)

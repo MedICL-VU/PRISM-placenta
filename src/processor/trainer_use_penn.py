@@ -6,114 +6,56 @@ from src.utils.util import _bbox_mask
 from src.utils import scribble, boundary_selection
 from .trainer_basic import Trainer_basic
 
-class Trainer(Trainer_basic):
+class Trainer_use_penn(Trainer_basic):
     def __init__(self, args, logger):
         super().__init__(args, logger)
 
     def forward(self, sam_model, image, label, iter_nums, train=False, return_each_iter=False, initial_seg=None):
+        if return_each_iter:
+            return_mask_total_iter = torch.zeros([iter_nums, 1, image.size(2), image.size(3), image.size(4)])
+
+        prev_masks = initial_seg.float().to(label.device)
+        dice = self.get_dice_score(torch.sigmoid(prev_masks[0, :]).cpu().numpy(), label[0, :].cpu().numpy())
+        print('using segmentations from Penn, Dice: {}'.format(dice))
+
         self.click_points = []
         self.click_labels = []
         return_loss = 0
 
-        if return_each_iter:
-            return_mask_total_iter = torch.zeros([iter_nums, 1, image.size(2), image.size(3), image.size(4)])
 
-        if self.args.initial_seg:
-            if self.args.use_penn:
-                print('using segmentations from Penn')
-                prev_masks = initial_seg.float().to(label.device)
-
-            else:
-                print('to do next')
-                prev_masks = torch.zeros_like(label, dtype=torch.float).to(label.device)
-                image_embedding, feature_list = self.sam.image_encoder(image)
-                prev_masks, _ = self.iteration_forward(sam_model, feature_list, image_embedding, prev_masks,
-                                                       points=None, boxes=None)
-                # calculate loss
-                initial_loss = self.loss_segmentation(prev_masks, label)
-                return_loss = return_loss + initial_loss
-
-                prev_masks = torch.sigmoid(prev_masks)
-                prev_masks = (prev_masks > 0.5)[:, 0, :]
-                prev_masks = prev_masks[:, None, :, :, :].float().to(label.device)
-            dice = self.get_dice_score(torch.sigmoid(prev_masks[0, :]).cpu().numpy(), label[0, :].cpu().numpy())
-            print(dice)
-        else:
-            prev_masks = torch.zeros_like(label, dtype=torch.float).to(label.device)
-
-        prev_masks = prev_masks.float().to(label.device)
-
-        image_embedding, feature_list = self.sam.image_encoder(image)
-
-        #prev_masks = torch.ones_like(label, dtype=torch.float).to(label.device)
         for iter_num in range(iter_nums):
             loss = 0
             prev_masks_sigmoid = torch.sigmoid(prev_masks) if iter_num > 0 else prev_masks
 
             points_input, labels_input, box_input = self.get_points(prev_masks_sigmoid, label, train_mode=train)
 
-            # if iter_num == 0:
-            mask, dice_pred = self.iteration_forward(sam_model, feature_list, image_embedding, prev_masks,
-                                                     points=[points_input, labels_input], boxes=box_input)
-            # ========================================================
-            if self.args.multiple_outputs:
-                dice_pred_best, max_label_index = torch.max(dice_pred, dim=1)
-                mask_list = [mask[i, max_label_index[i], :].unsqueeze(0) for i in range(mask.size(0))]
-                mask_best = torch.stack(mask_list, dim=0)
-            else:
-                mask_best = mask
-                print('SAM')
-            # else:
-            #     mask_best = prev_masks
-            #     print('no SAM')
+            mask_best = prev_masks
 
+            # mask_best = prev_masks if iter_num == 0 else torch.sigmoid(prev_masks)
+            # if iter_num > 0:
+            #     mask_best = mask_best > 0.5
+            # ========================================================
+            mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
+                                                                  [self.click_points, self.click_labels],
+                                                                  mask_best.detach())
+            if iter_num > 0:
+                print('dice before refine {} and after {}'.format(
+                    self.get_dice_score(torch.sigmoid(mask_best), label),
+                    self.get_dice_score(torch.sigmoid(mask_refine), label)))
+            else:
+                print('dice before refine {} and after {}'.format(
+                    self.get_dice_score(mask_best, label),
+                    self.get_dice_score(torch.sigmoid(mask_refine), label)))
 
             # ========================================================
             if train:
-                if self.args.multiple_outputs:
-                    for i in range(mask.size(1)):
-                        single_mask, single_dice = mask[:, i, :].unsqueeze(1), dice_pred[:, i]
-                        loss += self.calculate_loss(single_mask, prev_masks, single_dice, label, labels_input, iter_num)
-                else:
-                    loss = self.calculate_loss(mask, prev_masks, dice_pred[:, 0], label, labels_input, iter_num)
-
-                # ========================================================
-                if self.args.refine:
-                    if self.args.no_detach:
-                        mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
-                                                                              [self.click_points, self.click_labels],
-                                                                              mask_best)
-                    else:
-                        mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
-                                                                              [self.click_points, self.click_labels],
-                                                                              mask_best.detach())
-                    print('dice before refine {} and after {}'.format(
-                        self.get_dice_score(torch.sigmoid(mask_best), label),
-                        self.get_dice_score(torch.sigmoid(mask_refine), label)))
-
-                    # ========================================================
-                    loss += self.loss_segmentation(mask_refine, label) * 1
-
-                    mask_best = mask_refine
-
-            # ========================================================
+                loss += self.loss_segmentation(mask_refine, label) * 1
             else:
-                if self.args.refine:
-                    if self.args.no_detach:
-                        mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
-                                                                              [self.click_points, self.click_labels],
-                                                                              mask_best)
-                    else:
-                        mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
-                                                                              [self.click_points, self.click_labels],
-                                                                              mask_best.detach())
-                    if iter_num == iter_nums - 1 or iter_num == 0:
-                        self.logger.info('dice before refine {} and after {}, label 0: {}, label 1: {}'.format(
-                            self.get_dice_score(torch.sigmoid(mask_best), label), self.get_dice_score(torch.sigmoid(mask_refine), label),
-                            str(labels_input.numel() - torch.count_nonzero(labels_input)), str(torch.count_nonzero(labels_input)) ) )
-                    mask_best = mask_refine
-                loss = self.get_dice_score(torch.sigmoid(mask_best), label)
+                loss = self.get_dice_score(torch.sigmoid(mask_refine), label)
 
+            mask_best = mask_refine
+
+            # a = loss.data.cpu().numpy()
             return_loss += loss
             prev_masks = mask_best
 
@@ -148,13 +90,21 @@ class Trainer(Trainer_basic):
         batch_points = []
         batch_labels = []
 
+        ## FIXME this is for test only, check line 205 as well
+        # prev_seg[:, :, 30:80, 30:80, 30:80] = 0
+        # print('!!! penn mask has benn modified at trainner_use_penn.py line 92, please consider for commenting out')
+        # print('!!! penn mask has benn modified at trainner_use_penn.py line 92, please consider for commenting out')
+        # print('!!! penn mask has benn modified at trainner_use_penn.py line 92, please consider for commenting out')
+        # print('!!! penn mask has benn modified at trainner_use_penn.py line 92, please consider for commenting out')
+        # print('!!! penn mask has benn modified at trainner_use_penn.py line 92, please consider for commenting out')
+        #
+
         pred_masks = (prev_seg > 0.5)
         true_masks = (label > 0)
+
         fn_masks = torch.logical_and(true_masks, torch.logical_not(pred_masks))
         fp_masks = torch.logical_and(torch.logical_not(true_masks), pred_masks)
 
-        if self.args.sparse_sampling:
-            fn_masks, fp_masks = self.sampling_slice_for_propagate(true_masks, fn_masks, fp_masks, step_size=5)
         to_point_mask = torch.logical_or(fn_masks, fp_masks)
 
 
@@ -167,9 +117,19 @@ class Trainer(Trainer_basic):
             'default': 'ContourScribble'
         }
 
-        def create_scribble_mask(scribble_type, data):
+        def create_scribble_mask(scribble_type, data, orientation='axial'):
             scribble_object = getattr(scribble, scribble_type)()
-            scribble_mask = scribble_object.batch_scribble(data).permute(1, 2, 3, 0)
+            #scribble_object = getattr(scribble, scribble_type)(warp=False, break_mask=False) # centerline
+
+            scribble_mask = scribble_object.batch_scribble(data)
+
+            if orientation == 'sagittal':
+                scribble_mask = scribble_mask.permute(1, 0, 2, 3)
+            elif orientation == 'coronal':
+                scribble_mask = scribble_mask.permute(1, 2, 0, 3)
+            else:
+                scribble_mask = scribble_mask.permute(1, 2, 3, 0)
+
             return scribble_mask > 0
 
 
@@ -219,21 +179,86 @@ class Trainer(Trainer_basic):
                 bg_mask[:, i_min:i_max, j_min:j_max, k_min:k_max] = 1
                 bg = bg_orig * bg_mask.permute(3, 0, 1, 2)
 
-                # if self.args.scribble_sagittal:
+                #if self.args.scribble_sagittal:
+                # orientation_probability = random.random()
+                # # orientation_probability = 0.6
+                # if orientation_probability < 0.3:
+                #     orientation = 'sagittal'
                 #     fg, bg = fg.permute(1, 2, 3, 0).float(), bg.permute(1, 2, 3, 0).float()
                 #     fg, bg = fg.permute(1, 0, 2, 3).float(), bg.permute(1, 0, 2, 3).float()
                 #     print('sagittal')
-                # elif self.args.scribble_coronal:
-                #     fg, bg = fg.permute(1, 2, 3, 0).float(), bg.permute(1, 2, 0).float()
+                # elif 0.3 <= orientation_probability < 0.6:
+                #     orientation = 'coronal'
+                #     fg, bg = fg.permute(1, 2, 3, 0).float(), bg.permute(1, 2, 3, 0).float()
                 #     fg, bg = fg.permute(2, 0, 1, 3).float(), bg.permute(2, 0, 1, 3).float()
                 #     print('coronal')
                 # else:
+                #     orientation = 'axial'
                 #     print('axial')
 
-                print('filter out voxels: {}'.format(torch.count_nonzero(bg_orig) - torch.count_nonzero(bg)))
+
+                orientation = 'axial'
+                # fg, bg = fg.permute(1, 2, 3, 0).float(), bg.permute(1, 2, 3, 0).float()
+                # fg, bg = fg.permute(1, 0, 2, 3).float(), bg.permute(1, 0, 2, 3).float()
+                # #    print('sagittal')
+                # # elif self.args.scribble_coronal:
+                # #     fg, bg = fg.permute(1, 2, 3, 0).float(), bg.permute(1, 2, 0).float()
+                # #     fg, bg = fg.permute(2, 0, 1, 3).float(), bg.permute(2, 0, 1, 3).float()
+                # #     print('coronal')
+                # # else:
+                # #     print('axial')
+
+
+                print('filter out voxels for background: {}'.format(torch.count_nonzero(bg_orig) - torch.count_nonzero(bg)))
 
                 scribble_type = scribble_types.get(sample_method, scribble_types['default'])
-                scribble_mask_fg = create_scribble_mask(scribble_type, fg)
+                scribble_mask_fg = create_scribble_mask(scribble_type, fg, orientation=orientation)
+
+                ## FIXME check line 91 as well
+                # import matplotlib.pyplot as plt
+                # if orientation == 'sagittal':
+                #     fg = fg.permute(1, 0, 2, 3).float()
+                # elif orientation == 'coronal':
+                #     fg = fg.permute(1, 2, 0, 3).float()
+                #     print('coronal')
+                # else:
+                #     fg = fg.permute(1, 2, 3, 0).float()
+                #     print('axial')
+                #
+                # # sagittal
+                # plt.figure()
+                # plt.imshow(scribble_mask_fg[0, 64, :, :].cpu().numpy())
+                # plt.show()
+                # plt.imshow(fg[0, 64, :, :].cpu().numpy())
+                # plt.show()
+                # plt.imshow(true_masks[i, 0, 64, :, :].cpu().numpy())
+                # plt.show()
+                # plt.imshow(pred_masks[i, 0, 64, :, :].cpu().numpy())
+                # plt.show()
+                #
+                # # coronal
+                # plt.figure()
+                # plt.imshow(scribble_mask_fg[0, :, 64, :].cpu().numpy())
+                # plt.show()
+                # plt.imshow(fg[0, :, 64, :].cpu().numpy())
+                # plt.show()
+                # plt.imshow(true_masks[i, 0, :, 64, :].cpu().numpy())
+                # plt.show()
+                # plt.imshow(pred_masks[i, 0, :, 64, :].cpu().numpy())
+                # plt.show()
+                #
+                # # axial
+                # plt.figure()
+                # plt.imshow(scribble_mask_fg[0, :, :, 64].cpu().numpy())
+                # plt.show()
+                # plt.imshow(fg[0, :, :, 64].cpu().numpy())
+                # plt.show()
+                # plt.imshow(true_masks[i, 0, :, :, 64].cpu().numpy())
+                # plt.show()
+                # plt.imshow(pred_masks[i, 0, :, :, 64].cpu().numpy())
+                # plt.show()
+                # print(1)
+
 
                 limit_num = 200
                 if torch.count_nonzero(scribble_mask_fg) >= limit_num + 50:
@@ -248,7 +273,7 @@ class Trainer(Trainer_basic):
                 bl_list.append(fg_coors_label)
 
 
-                scribble_mask_bg = create_scribble_mask(scribble_type, bg)
+                scribble_mask_bg = create_scribble_mask(scribble_type, bg, orientation=orientation)
                 if torch.count_nonzero(scribble_mask_bg) >= limit_num + 50: # dynamic_size is 50
                     a = torch.argwhere(scribble_mask_bg).size(0) - limit_num
                     random_number = random.randint(0, a)
@@ -285,31 +310,6 @@ class Trainer(Trainer_basic):
         print('--- ===================================== ---')
         return batch_points, batch_labels
 
-    def sampling_slice_for_propagate(self, gt, fn_mask, fp_mask, step_size=1):
-        new_fn_mask = torch.zeros_like(fn_mask, dtype=torch.bool)
-        new_fp_mask = torch.zeros_like(fp_mask, dtype=torch.bool)
-
-        index_list = []
-        for i in range(0, gt.shape[-1]):
-            current_slice = gt[:, :, i]
-            if torch.count_nonzero(current_slice) > 0:
-                index_list.append(i)
-
-        for i in range(2, len(index_list)-2, step_size):
-            new_fn_mask[:, :, :, :, index_list[i]] = fn_mask[:, :, :, :, index_list[i]]
-            new_fp_mask[:, :, :, :, index_list[i]] = fp_mask[:, :, :, :, index_list[i]]
-
-        new_fn_mask[:, :, :, :, index_list[0]] = fn_mask[:, :, :, :, index_list[0]]
-        new_fp_mask[:, :, :, :, index_list[0]] = fp_mask[:, :, :, :, index_list[0]]
-        new_fn_mask[:, :, :, :, index_list[1]] = fn_mask[:, :, :, :, index_list[1]]
-        new_fp_mask[:, :, :, :, index_list[1]] = fp_mask[:, :, :, :, index_list[1]]
-
-        new_fn_mask[:, :, :, :, index_list[-1]] = fn_mask[:, :, :, :, index_list[-1]]
-        new_fp_mask[:, :, :, :, index_list[-1]] = fp_mask[:, :, :, :, index_list[-1]]
-        new_fn_mask[:, :, :, :, index_list[-2]] = fn_mask[:, :, :, :, index_list[-2]]
-        new_fp_mask[:, :, :, :, index_list[-2]] = fp_mask[:, :, :, :, index_list[-2]]
-
-        return new_fn_mask, new_fp_mask
     def iteration_forward(self, sam_model, features, image_embedding, prev_masks, points=None, boxes=None):
         prev_masks = F.interpolate(prev_masks, scale_factor=0.25)
         features = [features[i].to(self.args.device) for i in range(0, len(features))]
@@ -327,7 +327,6 @@ class Trainer(Trainer_basic):
             feature_list=features,
         )
         return mask, dice_pred
-
 
 
 

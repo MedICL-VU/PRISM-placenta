@@ -1,6 +1,6 @@
 import torch
 from functools import partial
-from . import image_encoder, prompt_encoder, mask_decoder, sam3D, mask_decoder_plain
+from . import image_encoder, prompt_encoder, mask_decoder, sam3D, mask_decoder_use_penn
 
 
 def build_sam3D_vit_b_ori(args=None, checkpoint=None):
@@ -56,12 +56,12 @@ def _build_sam3D_ori(
             multiple_outputs=args.multiple_outputs,
         ),
 
-        mask_decoder=mask_decoder_plain.MaskDecoder3D(
+        mask_decoder=mask_decoder_use_penn.MaskDecoder3D(
             args,
             transformer_dim=prompt_embed_dim,
             num_multiple_outputs=args.num_multiple_outputs,
             multiple_outputs=args.multiple_outputs,
-        ) if args.plain
+        ) if args.use_penn
         else mask_decoder.MaskDecoder3D(
             args,
             transformer_dim=prompt_embed_dim,
@@ -69,8 +69,21 @@ def _build_sam3D_ori(
             multiple_outputs=args.multiple_outputs,
         )
         ,
-
     )
+
+    # FIXME
+    #  PRISM mask decoder  217208669184
+    # a = torch.rand(1, 2967, 384)
+    # b = torch.rand(1, 384, 8, 8, 8)
+    # c = torch.rand(1, 32, 128, 128, 128)
+    # d = torch.rand(1, 32, 64, 64, 64)
+    # e = torch.rand(1, 64, 32, 32, 32)
+    # f = torch.rand(1, 128, 16, 16, 16)
+    # from fvcore.nn import FlopCountAnalysis
+    # flop_counter = FlopCountAnalysis(sam.mask_decoder.cpu(), inputs=(a, b, [c, d, e, f]))
+    # print(flop_counter.total())
+    # print(1)
+
     sam.eval()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:

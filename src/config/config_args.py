@@ -13,6 +13,7 @@ parser.add_argument("--split", default="train", type=str)
 parser.add_argument('--small50', action="store_true")
 parser.add_argument('--small25', action="store_true")
 parser.add_argument('--multi_class', action="store_true")
+parser.add_argument('--plain', action="store_true")
 parser.add_argument('--sparse_sampling', action="store_true")
 
 

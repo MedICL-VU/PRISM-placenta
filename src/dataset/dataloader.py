@@ -169,6 +169,9 @@ class Dataset_promise(Dataset):
         with open(dataset_split, "rb") as f:
             d = pickle.load(f)[split]
 
+        # self.image_paths = [d[i][0] for i in list(d.keys())][0:2]
+        # self.label_paths = [d[i][1] for i in list(d.keys())][0:2]
+        # self.seg_paths = [d[i][2] for i in list(d.keys())][0:2]
         self.image_paths = [d[i][0] for i in list(d.keys())]
         self.label_paths = [d[i][1] for i in list(d.keys())]
         self.seg_paths = [d[i][2] for i in list(d.keys())]

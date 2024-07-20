@@ -4,6 +4,9 @@ Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Imag
 [arXiv version](https://arxiv.org/abs/2407.08020)
 
 ## News
+
+[07/20/24] PRISM: Lite: A lightweight model version for placenta segmentation is uploaded.
+
 [07/07/24] Repo is created as a version control for the placenta application.
 
 
@@ -63,6 +66,8 @@ python train.py --data ultrasound --data_dir your_data_directory --save_name you
 ```
 
 add "--use_scribble" and "--efficient_scribble" if you want to train with scribbles.
+
+use "--initial_seg" and "--use_penn" to adapt the masks from pretrained model (developed by Penn's group).
 
 **Train (Distributed Data Parallel)**
 

@@ -2,6 +2,8 @@ import logging
 from utils.util import setup_logger
 from config.config_args import *
 from processor.trainer import Trainer
+from processor.trainer_use_penn import Trainer_use_penn
+from processor.trainer_lab_server import Trainer_lab
 import torch.multiprocessing as mp
 import torch
 import torch.distributed as dist
@@ -62,7 +64,10 @@ def main_worker(rank, args):
     logger = logging.getLogger(log_name)
     logger.info(str(args))
 
-    Trainer(args, logger).run()
+    if args.use_penn:
+        Trainer_use_penn(args, logger).run()
+    else:
+        Trainer(args, logger).run()
     cleanup()
 
 
@@ -86,7 +91,11 @@ def main():
         logger.info(str(args))
 
         args.rank = -1
-        Trainer(args, logger).run(),
+        if args.use_penn:
+            #Trainer_use_penn(args, logger).run() # this is adapted from "Trainer_lab", but has some bug. I dont know whats going on. SPIE results are from "Trainer_lab"
+            Trainer_lab(args, logger).run()
+        else:
+            Trainer(args, logger).run()
 
 
 def cleanup():

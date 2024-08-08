@@ -1,7 +1,5 @@
 # PRISM-placenta
-Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Images
-
-[arXiv version](https://arxiv.org/abs/2407.08020)
+Interactive Segmentation Model for Placenta Segmentation from 3D Ultrasound Images ([arXiv version](https://arxiv.org/abs/2407.08020))
 
 ## News
 

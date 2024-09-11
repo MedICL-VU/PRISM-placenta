@@ -3,6 +3,8 @@
 
 - PRISM Lite: A lightweight model for interactive 3D placenta segmentation in ultrasound ([arXiv version](https://arxiv.org/abs/2408.05372))
 
+- PRISM: A **P**romptable and **R**obust **I**nteractive **S**egmentation **M**odel with Visual Prompts ([arXiv version](https://arxiv.org/abs/2404.15028))
+
 ## News
 
 [07/20/24] PRISM: Lite: A lightweight model version for placenta segmentation is uploaded.

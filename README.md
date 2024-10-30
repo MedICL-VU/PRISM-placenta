@@ -69,7 +69,13 @@ python train.py --data ultrasound --data_dir your_data_directory --save_name you
 
 add "--use_scribble" and "--efficient_scribble" if you want to train with scribbles.
 
+**Train PRISM Lite**
+
 use "--initial_seg" and "--use_penn" to adapt the masks from pretrained model (developed by Penn's group).
+
+```
+python train.py --data ultrasound --data_dir your_data_directory --save_name your_save_name --multiple_outputs --dynamic --use_box --refine --initial_seg --use_penn
+```
 
 **Train (Distributed Data Parallel)**
 

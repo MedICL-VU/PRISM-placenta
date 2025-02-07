@@ -494,12 +494,16 @@ class Tester(object):
 
         # sparse_embeddings --> (B, 2, embed_dim) 2 represents concat of coordination and its label
         # dense_embeddings --> (B, embed_dim, W, H, D), whd values are customized
-        new_point_embedding, new_image_embedding = sam_model.prompt_encoder(
-            points=points,
-            boxes=boxes,
-            masks=prev_masks,
-            image_embeddings=image_embedding.to(self.args.device)
-        )
+
+        if self.args.use_penn:
+            new_point_embedding, new_image_embedding = None, None
+        else:
+            new_point_embedding, new_image_embedding = sam_model.prompt_encoder(
+                points=points,
+                boxes=boxes,
+                masks=prev_masks,
+                image_embeddings=image_embedding.to(self.args.device)
+            )
 
         mask, pred_dice = sam_model.mask_decoder(
             prompt_embeddings=new_point_embedding,  # (B, 2, 256)
@@ -532,7 +536,10 @@ class Tester(object):
 
         prev_masks = prev_masks.float().to(label.device)
 
-        image_embedding, feature_list = self.sam.image_encoder(image)
+        if self.args.use_penn:
+            image_embedding, feature_list = None, None
+        else:
+            image_embedding, feature_list = self.sam.image_encoder(image)
 
         self.click_points = []
         self.click_labels = []

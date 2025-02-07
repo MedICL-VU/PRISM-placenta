@@ -36,7 +36,6 @@ class Tester(object):
 
         self.val_data = get_dataloader(args, split='test')
 
-        a = time.time()
         print('loading models and setting up')
         self.sam = build_model(args, checkpoint=ckpt)
 
@@ -177,6 +176,7 @@ class Tester(object):
             # for idx, data in enumerate(val_data):
             # img, label = data['image'].to(device), data['label'].to(device)
             for idx, (image, label, data_output) in enumerate(self.val_data):
+
                 self.image_path, self.subject_dict_save = data_output['image_path'], data_output['subject_save']
                 image, label = image.to(device), label.to(device)
 
@@ -366,7 +366,7 @@ class Tester(object):
                     'default': 'ContourScribble'
                 }
 
-                def create_scribble_mask(scribble_type, data):
+                def create_scribble_mask(scribble_type, data, orientation='axial'):
 
                     # non-random scribbles
                     #scribble_object = getattr(scribble, scribble_type)(warp=False, break_mask=False) # centerline
@@ -374,7 +374,14 @@ class Tester(object):
 
                     scribble_object = getattr(scribble, scribble_type)()
 
-                    scribble_mask = scribble_object.batch_scribble(data).permute(1, 2, 3, 0)
+                    scribble_mask = scribble_object.batch_scribble(data)
+                    if orientation == 'sagittal':
+                        scribble_mask = scribble_mask.permute(1, 0, 2, 3)
+                    elif orientation == 'coronal':
+                        scribble_mask = scribble_mask.permute(1, 2, 0, 3)
+                    else:
+                        scribble_mask = scribble_mask.permute(1, 2, 3, 0)
+
                     return scribble_mask > 0
 
                 # fg = gt_semantic_seg[i].permute(3, 0, 1, 2).float()
@@ -423,9 +430,13 @@ class Tester(object):
                 # fg, bg = fn_masks[i].permute(3, 0, 1, 2).float(), fp_masks[i].permute(3, 0, 1, 2).float()
 
                 # sagittal
-                # if self.args.scribble_sagittal:
-                #     fg, bg = fn_masks[i].permute(1, 0, 2, 3).float(), fp_masks[i].permute(1, 0, 2, 3).float()
-                #     print('sagittal')
+                if self.args.scribble_sagittal:
+                    orientation = 'sagittal'
+                    fg, bg = fg.permute(1, 2, 3, 0).float(), bg.permute(1, 2, 3, 0).float()
+                    fg, bg = fg.permute(1, 0, 2, 3).float(), bg.permute(1, 0, 2, 3).float()
+                    print('sagittal')
+                else:
+                    orientation = 'axial'
                 # elif self.args.scribble_coronal:
                 # # coronal
                 #     fg, bg = fn_masks[i].permute(2, 0, 1, 3).float(), fp_masks[i].permute(2, 0, 1, 3).float()
@@ -435,8 +446,8 @@ class Tester(object):
                 #     print('axial')
 
                 scribble_type = scribble_types.get(sample_method, scribble_types['default']) # if sample_method otherwise default
+                scribble_mask_fg = create_scribble_mask(scribble_type, fg, orientation=orientation)
 
-                scribble_mask_fg = create_scribble_mask(scribble_type, fg)
                 #fg_coors = torch.argwhere(scribble_mask_fg)[:, 1:].unsqueeze(0)[:, 0: 100, :]  # for computation only
                 fg_coors = torch.argwhere(scribble_mask_fg)[:, 1:].unsqueeze(0)
                 if self.args.efficient_scribble:
@@ -448,7 +459,7 @@ class Tester(object):
 
                 #if sample_method == 'default':
                 if torch.count_nonzero(fp_masks) > 0:
-                    scribble_mask_bg = create_scribble_mask(scribble_type, bg)
+                    scribble_mask_bg = create_scribble_mask(scribble_type, bg, orientation=orientation)
                     bg_coors = torch.argwhere(scribble_mask_bg)[:, 1:].unsqueeze(0)
                     if self.args.efficient_scribble:
                         bg_coors = bg_coors[:, 0: 10000, :]
@@ -492,18 +503,30 @@ class Tester(object):
         prev_masks = F.interpolate(prev_masks.float(), scale_factor=0.25)
         features = [features[i].to(self.args.device) for i in range(0, len(features))]
 
+        # FIXME
+        #  PRISM prompt encoder 31883327616
+
+        # image_embedding = torch.rand(1, 384, 8, 8, 8)
+        # mask = torch.rand(1, 1, 128, 128, 128)
+        # mask = F.interpolate(mask.float(), scale_factor=0.25)
+        # a = points[0].cpu()
+        # b = points[1].cpu()
+        # c = boxes.cpu()
+        # self.sam.cpu()
+        # from fvcore.nn import FlopCountAnalysis
+        # flop_counter = FlopCountAnalysis(self.sam.prompt_encoder.cpu(), inputs=([a, b], c, mask, image_embedding))
+        # print(flop_counter.total())
+        # print(1)
+
+
         # sparse_embeddings --> (B, 2, embed_dim) 2 represents concat of coordination and its label
         # dense_embeddings --> (B, embed_dim, W, H, D), whd values are customized
-
-        if self.args.use_penn:
-            new_point_embedding, new_image_embedding = None, None
-        else:
-            new_point_embedding, new_image_embedding = sam_model.prompt_encoder(
-                points=points,
-                boxes=boxes,
-                masks=prev_masks,
-                image_embeddings=image_embedding.to(self.args.device)
-            )
+        new_point_embedding, new_image_embedding = sam_model.prompt_encoder(
+            points=points,
+            boxes=boxes,
+            masks=prev_masks,
+            image_embeddings=image_embedding.to(self.args.device)
+        )
 
         mask, pred_dice = sam_model.mask_decoder(
             prompt_embeddings=new_point_embedding,  # (B, 2, 256)
@@ -517,59 +540,109 @@ class Tester(object):
 
         if self.args.initial_seg:
             if self.args.use_penn:
-                print('using segmentations from Penn')
                 prev_masks = initial_seg.float().to(label.device)
+
+                # bbox_coords = _bbox_mask(label[:, 0, :]).to(self.args.device) if self.args.use_box else None
+                # prev_masks = torch.zeros_like(label)
+                # prev_masks[:, :, bbox_coords[:, :, 0] : bbox_coords[:, :, 3],
+                # bbox_coords[:, :, 1] : bbox_coords[:, :, 4], bbox_coords[:, :, 2] : bbox_coords[:, :, 5]] = 1
+
+                # kernel_size = 3  # 3x3x3 cube
+                # kernel = torch.ones((1, 1, kernel_size, kernel_size, kernel_size)).to(label.device)
+                # dilated_tensor = F.conv3d(prev_masks, kernel, padding=kernel_size // 2, stride=1)
+                # prev_masks = (dilated_tensor > 0).float()
+
+
+
+                dice_penn = self.get_dice_score(torch.sigmoid(prev_masks).cpu().numpy(), label.cpu().numpy())
+                print('using segmentations from Penn, Dice: {}'.format(dice_penn))
+                initial_mask = prev_masks
             else:
+                # TODO: below is "produce initial segmentation without prompt"
                 print('to do next')
                 prev_masks = torch.zeros_like(label, dtype=torch.float).to(label.device)
                 image_embedding, feature_list = self.sam.image_encoder(image)
+
+                # import torchstat
+                # torchstat.model_stats(self.sam.image_encoder, input_size=(1, 1, 128, 128, 128))
+
                 prev_masks, _ = self.iteration_forward(sam_model, feature_list, image_embedding, prev_masks,
                                                        points=None, boxes=None)
 
                 prev_masks = torch.sigmoid(prev_masks)
                 prev_masks = (prev_masks > 0.5)[:, 0, :]
                 prev_masks = prev_masks[:, None, :, :, :].float().to(label.device)
-            dice = self.get_dice_score(torch.sigmoid(prev_masks[0, :]).cpu().numpy(), label[0, :].cpu().numpy())
-            print(dice)
+                dice = self.get_dice_score(torch.sigmoid(prev_masks[0, :]).cpu().numpy(), label[0, :].cpu().numpy())
+                print(dice)
         else:
             prev_masks = torch.zeros_like(label, dtype=torch.float).to(label.device)
 
         prev_masks = prev_masks.float().to(label.device)
 
-        if self.args.use_penn:
-            image_embedding, feature_list = None, None
-        else:
+        if not self.args.use_penn:
+            start_time = time.time()
             image_embedding, feature_list = self.sam.image_encoder(image)
-
+            image_encoder_time = time.time() - start_time
+            print('image_encoder takes: {}'.format(image_encoder_time))
         self.click_points = []
         self.click_labels = []
 
 
         for iter_num in range(self.args.iter_nums):
             self.current_iter = iter_num
-            prev_masks_sigmoid = torch.sigmoid(prev_masks) if iter_num > 0 else prev_masks
 
+            prev_masks_sigmoid = torch.sigmoid(prev_masks) if iter_num > 0 else prev_masks
             points_input, labels_input, bbox_input = self.get_points(prev_masks_sigmoid, label)
 
             # prev_masks = (torch.sigmoid(prev_masks) > 0.5)
             # print(torch.unique(prev_masks))
-            mask, pred_dice = self.batch_forward(sam_model, feature_list, image_embedding, image, prev_masks, points=[points_input, labels_input], boxes=bbox_input)
+            if self.args.use_penn:
+                mask_best = prev_masks
 
-            if self.args.multiple_outputs:
-                pred_best_dice, pred_dice_max_index = torch.max(pred_dice, dim=1)
-                mask_best = mask[:, pred_dice_max_index, :]
+                # mask_best = prev_masks if iter_num == 0 else torch.sigmoid(prev_masks)
+                # if iter_num > 0:
+                #     mask_best = mask_best > 0.5
+                #     mask_best = mask_best.float()
             else:
-                mask_best, pred_best_dice = mask, pred_dice
-            # FIXME refine or not
+                start_time = time.time()
+                mask, pred_dice = self.batch_forward(sam_model, feature_list, image_embedding, image, prev_masks, points=[points_input, labels_input], boxes=bbox_input)
+                batch_forward_time = time.time() - start_time
+                print('batch forward takes: {}'.format(batch_forward_time))
+                if self.args.multiple_outputs:
+                    pred_best_dice, pred_dice_max_index = torch.max(pred_dice, dim=1)
+                    mask_best = mask[:, pred_dice_max_index, :]
+                else:
+                    mask_best, pred_best_dice = mask, pred_dice
+
+                # FIXME refine or not
             if self.args.refine and self.args.refine_test:
+                start_time = time.time()
                 if self.args.no_detach:
                     mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
                                                                           [self.click_points, self.click_labels],
                                                                           mask_best.detach())
                 else:
+
+                    #FIXME
+                    # lightweight model flops 29285154816
+                    # PRISM                   29209133056
+                    # need to change some lines in Refine.forward function
+                    #from fvcore.nn import FlopCountAnalysis
+                    # image = torch.rand(1, 4, 128, 128, 128)
+                    # mask = torch.rand(1, 1, 128, 128, 128)
+                    # self.sam.cpu()
+                    # flop_counter = FlopCountAnalysis(self.sam.mask_decoder.refine.cpu(), inputs=(image, mask))
+                    # print(flop_counter.total())
+                    # print(1)
+
+
                     mask_refine, error_map = self.sam.mask_decoder.refine(image, mask_best,
                                                                           [self.click_points, self.click_labels],
                                                                           mask_best.detach())
+
+
+                refine_time = time.time() - start_time
+                print('refine takes: {}'.format(refine_time))
                 print('dice before refine {} and after {}'.format(
                     self.get_dice_score(torch.sigmoid(mask_best), label),
                     self.get_dice_score(torch.sigmoid(mask_refine), label))
@@ -580,10 +653,14 @@ class Tester(object):
 
             dice = self.get_dice_score(torch.sigmoid(prev_masks).cpu().numpy(), label.cpu().numpy())
             print('---')
-            print(f'Dice: {dice:.4f}, pred_dice: {pred_best_dice}, label: {labels_input}')
+            if self.args.use_penn:
+                print(f'Dice: {dice:.4f}, label: {labels_input}')
+            else:
+                print(f'Dice: {dice:.4f}, pred_dice: {pred_best_dice}, label: {labels_input}')
 
             prompts = {'points': self.click_points, 'labels': self.click_labels}
 
+            print(time.time()-start_time)
             if self.args.save_predictions:
                 save_test_dir = os.path.join(self.args.save_test_dir, 'prism_prediction', self.args.data,
                                              self.args.save_name, str(iter_num))
@@ -591,6 +668,14 @@ class Tester(object):
                     os.makedirs(save_test_dir)
                 a = torch.sigmoid(prev_masks) > 0.5
                 a = a.float().cpu().numpy()
+                import cc3d
+                a1, N = cc3d.largest_k(
+                    a[0, 0, :], k=1,
+                    connectivity=26, delta=0,
+                    return_N=True,
+                )
+                a = np.expand_dims(a1, axis=0)
+                a = np.expand_dims(a, axis=0)
                 import SimpleITK as sitk
                 prediction = sitk.GetImageFromArray(a)
 
@@ -614,11 +699,13 @@ class Tester(object):
                         label_iter_j = label_iter_j + (iter_i * 2) + 1
                         label_iter_j = int(label_iter_j)
 
-                        # axial
-                        b[0, 0, point_iter_j[0], point_iter_j[1], point_iter_j[2]] = label_iter_j
 
-                        # sagittal
-                        # b[0, 0, point_iter_j[2], point_iter_j[0], point_iter_j[1]] = label_iter_j
+                        # if self.args.scribble_sagittal:
+                        #     # sagittal
+                        #     b[0, 0, point_iter_j[2], point_iter_j[0], point_iter_j[1]] = label_iter_j
+                        # else:
+                        #     # axial
+                        b[0, 0, point_iter_j[0], point_iter_j[1], point_iter_j[2]] = label_iter_j
 
                         # coronal
                         # b[0, 0, point_iter_j[1], point_iter_j[2], point_iter_j[0]] = label_iter_j
@@ -639,11 +726,22 @@ class Tester(object):
                     image_save = sitk.GetImageFromArray(b)
                     sitk.WriteImage(image_save, os.path.join(save_test_dir, image_name))
 
+                    if self.args.use_penn:
+                        image_name = base_name.replace('.nii.gz', '_penn.nii.gz')
+                        b = self.subject_dict_save['seg']['data'][0][0].float().cpu().numpy()
+                        image_save = sitk.GetImageFromArray(b)
+                        sitk.WriteImage(image_save, os.path.join(save_test_dir, image_name))
+
                     if self.args.refine_test:
                         label_name = base_name.replace('.nii.gz', '_label.nii.gz')
                     else:
                         label_name = base_name.replace('.nii.gz', '_label_no_refine.nii.gz')
                     c = self.subject_dict_save['label']['data'][0][0].float().cpu().numpy()
+                    label_save = sitk.GetImageFromArray(c)
+                    sitk.WriteImage(label_save, os.path.join(save_test_dir, label_name))
+
+                    label_name = base_name.replace('.nii.gz', '_initial_mask.nii.gz')
+                    c = initial_mask[0][0].float().cpu().numpy()
                     label_save = sitk.GetImageFromArray(c)
                     sitk.WriteImage(label_save, os.path.join(save_test_dir, label_name))
 

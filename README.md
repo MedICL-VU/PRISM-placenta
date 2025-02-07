@@ -96,6 +96,12 @@ python test.py --data ultrasound --data_dir your_data_directory --split test --c
 ```
 
 
+**Test PRISM Lite**
+```
+python test.py --data ultrasound --data_dir your_data_directory --split test --checkpoint best --save_name prism_pretrain --num_clicks 1 --iter_nums 11 --multiple_outputs --use_box --use_scribble --efficient_scribble --refine --refine_test --initial_seg --use_penn
+```
+
+
 
 **FAQ**
 
